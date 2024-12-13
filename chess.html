@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Modern Chess</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(45deg, #1a1a1a, #2a2a2a);
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+
+        .game-container {
+            text-align: center;
+        }
+
+        .board {
+            width: 560px;
+            height: 560px;
+            border-radius: 10px;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+        }
+
+        .cell {
+            width: 70px;
+            height: 70px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cell::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .cell:hover::before {
+            transform: translateY(0);
+        }
+
+        .white {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .black {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .selected {
+            background: rgba(76, 175, 80, 0.3) !important;
+            transform: scale(0.95);
+        }
+
+        .possible-move {
+            background: rgba(255, 235, 59, 0.2) !important;
+        }
+
+        .possible-move::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 235, 59, 0.4);
+            border-radius: 50%;
+        }
+
+        .status-bar {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            font-size: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .piece {
+            transition: all 0.3s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .piece-white {
+            color: #fff;
+        }
+
+        .piece-black {
+            color: #000;
+        }
+
+        .captured-pieces {
+            margin-top: 15px;
+            font-size: 24px;
+            min-height: 40px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        @keyframes capture {
+            0% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .captured {
+            animation: capture 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="board" id="chessboard"></div>
+        <div class="status-bar">
+            <span>Ход: <span id="current-player">белых</span></span>
+            <span id="timer">00:00</span>
+        </div>
+        <div class="captured-pieces" id="captured"></div>
+    </div>
+
+    <script>
+        class ModernChessGame {
+            constructor() {
+                this.board = document.getElementById('chessboard');
+                this.statusElement = document.getElementById('current-player');
+                this.capturedElement = document.getElementById('captured');
+                this.selectedCell = null;
+                this.currentPlayer = 'white';
+                this.capturedPieces = [];
+                this.initializeBoard();
+                this.setupInitialPosition();
+                this.startTimer();
+            }
+
+            initializeBoard() {
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const cell = document.createElement('div');
+                        cell.className = `cell ${(row + col) % 2 === 0 ? 'white' : 'black'}`;
+                        cell.dataset.row = row;
+                        cell.dataset.col = col;
+                        cell.addEventListener('click', () => this.handleCellClick(cell));
+                        this.board.appendChild(cell);
+                    }
+                }
+            }
+
+            setupInitialPosition() {
+                const initialPosition = {
+                    '0,0': '♜', '0,1': '♞', '0,2': '♝', '0,3': '♛',
+                    '0,4': '♚', '0,5': '♝', '0,6': '♞', '0,7': '♜',
+                    '7,0': '♖', '7,1': '♘', '7,2': '♗', '7,3': '♕',
+                    '7,4': '♔', '7,5': '♗', '7,6': '♘', '7,7': '♖'
+                };
+
+                for (let col = 0; col < 8; col++) {
+                    this.createPiece(1, col, '♟', 'black');
+                    this.createPiece(6, col, '♙', 'white');
+                }
+
+                for (const [pos, piece] of Object.entries(initialPosition)) {
+                    const [row, col] = pos.split(',');
+                    const color = row === '0' ? 'black' : 'white';
+                    this.createPiece(parseInt(row), parseInt(col), piece, color);
+                }
+            }
+
+            createPiece(row, col, piece, color) {
+                const cell = this.getCell(row, col);
+                const pieceElement = document.createElement('span');
+                pieceElement.textContent = piece;
+                pieceElement.className = `piece piece-${color}`;
+                cell.appendChild(pieceElement);
+            }
+
+            getCell(row, col) {
+                return this.board.children[row * 8 + col];
+            }
+
+            handleCellClick(cell) {
+                if (this.selectedCell) {
+                    if (this.isValidMove(this.selectedCell, cell)) {
+                        this.makeMove(this.selectedCell, cell);
+                        this.clearHighlights();
+                        this.selectedCell = null;
+                        this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
+                        this.statusElement.textContent = this.currentPlayer === 'white' ? 'белых' : 'черных';
+                    } else {
+                        this.clearHighlights();
+                        if (cell.firstChild && this.isPieceOfCurrentPlayer(cell)) {
+                            this.selectedCell = cell;
+                            cell.classList.add('selected');
+                            this.showPossibleMoves(cell);
+                        } else {
+                            this.selectedCell = null;
+                        }
+                    }
+                } else if (cell.firstChild && this.isPieceOfCurrentPlayer(cell)) {
+                    this.selectedCell = cell;
+                    cell.classList.add('selected');
+                    this.showPossibleMoves(cell);
+                }
+            }
+
+            isPieceOfCurrentPlayer(cell) {
+                if (!cell.firstChild) return false;
+                const piece = cell.firstChild.textContent;
+                return this.currentPlayer === 'white' ? 
+                    '♔♕♖♗♘♙'.includes(piece) : 
+                    '♚♛♜♝♞♟'.includes(piece);
+            }
+
+            clearHighlights() {
+                const cells = this.board.getElementsByClassName('cell');
+                for (const cell of cells) {
+                    cell.classList.remove('selected', 'possible-move');
+                }
+            }
+
+            isValidMove(fromCell, toCell) {
+                if (toCell.firstChild && this.isPieceOfCurrentPlayer(toCell)) {
+                    return false;
+                }
+                return true;
+            }
+
+            makeMove(fromCell, toCell) {
+                if (toCell.firstChild) {
+                    const capturedPiece = toCell.firstChild.textContent;
+                    this.capturedPieces.push(capturedPiece);
+                    this.updateCapturedPieces();
+                }
+                
+                const piece = fromCell.firstChild;
+                if (toCell.firstChild) {
+                    toCell.removeChild(toCell.firstChild);
+                }
+                fromCell.removeChild(piece);
+                toCell.appendChild(piece);
+            }
+
+            updateCapturedPieces() {
+                this.capturedElement.innerHTML = this.capturedPieces
+                    .map(piece => `<span class="captured">${piece}</span>`)
+                    .join('');
+            }
+
+            showPossibleMoves(cell) {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+
+                for (let i = -1; i <= 1; i++) {
+                    for (let j = -1; j <= 1; j++) {
+                        if (i === 0 && j === 0) continue;
+                        const newRow = row + i;
+                        const newCol = col + j;
+                        if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
+                            const targetCell = this.getCell(newRow, newCol);
+                            if (!this.isPieceOfCurrentPlayer(targetCell)) {
+                                targetCell.classList.add('possible-move');
+                            }
+                        }
+                    }
+                }
+            }
+
+            startTimer() {
+                let seconds = 0;
+                setInterval(() => {
+                    seconds++;
+                    const minutes = Math.floor(seconds / 60);
+                    const remainingSeconds = seconds % 60;
+                    document.getElementById('timer').textContent = 
+                        `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+                }, 1000);
+            }
+        }
+
+        window.onload = () => new ModernChessGame();
+    </script>
+</body>
+</html>
